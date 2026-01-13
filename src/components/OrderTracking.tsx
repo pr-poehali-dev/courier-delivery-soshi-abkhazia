@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
 import Icon from '@/components/ui/icon';
 import { toast } from 'sonner';
+import FadeInSection from '@/components/FadeInSection';
 
 interface Order {
   id: string;
@@ -82,6 +83,7 @@ const OrderTracking = () => {
   return (
     <div className="py-16 bg-gradient-to-br from-purple-50 to-pink-50">
       <div className="container mx-auto px-4">
+        <FadeInSection>
         <div className="text-center mb-12">
           <div className="inline-flex items-center justify-center w-16 h-16 bg-primary/10 rounded-full mb-4">
             <Icon name="Search" size={32} className="text-primary" />
@@ -207,6 +209,7 @@ const OrderTracking = () => {
             )}
           </CardContent>
         </Card>
+        </FadeInSection>
       </div>
     </div>
   );

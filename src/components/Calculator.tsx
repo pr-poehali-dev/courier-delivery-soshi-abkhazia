@@ -4,6 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import Icon from '@/components/ui/icon';
+import FadeInSection from '@/components/FadeInSection';
 
 const Calculator = () => {
   const [weight, setWeight] = useState('');
@@ -35,6 +36,7 @@ const Calculator = () => {
   return (
     <div className="py-16 bg-gradient-to-br from-blue-50 to-orange-50">
       <div className="container mx-auto px-4">
+        <FadeInSection>
         <div className="text-center mb-8">
           <h2 className="text-4xl font-bold mb-3 bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
             Калькулятор стоимости доставки
@@ -192,6 +194,7 @@ const Calculator = () => {
             Объёмный вес = (Длина × Ширина × Высота) / 5000. Для расчёта используется больший из весов.
           </p>
         </div>
+        </FadeInSection>
       </div>
     </div>
   );

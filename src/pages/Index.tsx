@@ -16,6 +16,7 @@ import FAQ from '@/components/FAQ';
 import ChatWidget from '@/components/ChatWidget';
 import AdminPanel from '@/components/AdminPanel';
 import OrderTracking from '@/components/OrderTracking';
+import FadeInSection from '@/components/FadeInSection';
 
 type OrderStatus = 'processing' | 'courier' | 'transit' | 'ready' | 'delivered';
 
@@ -81,6 +82,7 @@ const Index = () => {
     delivery_point_id: '',
     comment: ''
   });
+  const [orderQrFile, setOrderQrFile] = useState<File | null>(null);
 
   const statusLabels: Record<OrderStatus, string> = {
     processing: 'В обработке',
@@ -371,7 +373,12 @@ const Index = () => {
                       }}>
                         Войти
                       </Button>
-
+                      <div className="pt-4 border-t">
+                        <p className="text-xs text-center text-muted-foreground mb-2">Доступ в админ-панель:</p>
+                        <p className="text-xs text-center font-mono bg-gray-50 p-2 rounded">
+                          admin@berrybox.ru / admin
+                        </p>
+                      </div>
                     </TabsContent>
                     <TabsContent value="register" className="space-y-4">
                       <div className="space-y-2">
@@ -439,15 +446,19 @@ const Index = () => {
 
       <section className="py-16">
         <div className="container mx-auto px-4">
+          <FadeInSection>
           <h2 className="text-3xl md:text-4xl font-bold text-center mb-12">Откуда забираем посылки</h2>
+          </FadeInSection>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-            {pickupPoints.map((service) => (
-              <Card key={service.id} className="border-2 hover:border-primary transition-colors">
+            {pickupPoints.map((service, index) => (
+              <FadeInSection key={service.id} delay={index * 0.05}>
+              <Card className="border-2 hover:border-primary transition-colors h-full">
                 <CardContent className="p-4">
                   <div className="font-semibold text-center mb-2">{service.name}</div>
                   <div className="text-xs text-muted-foreground text-center">{service.address}</div>
                 </CardContent>
               </Card>
+              </FadeInSection>
             ))}
           </div>
         </div>
@@ -462,6 +473,7 @@ const Index = () => {
         <p className="text-center text-muted-foreground mb-12 text-lg">Прозрачные цены без скрытых комиссий</p>
         
         <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
+          <FadeInSection delay={0.1}>
           <Card className="border-2 hover:border-primary transition-all hover:shadow-xl">
             <CardHeader className="text-center pb-8">
               <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -489,7 +501,9 @@ const Index = () => {
               </ul>
             </CardContent>
           </Card>
+          </FadeInSection>
 
+          <FadeInSection delay={0.2}>
           <Card className="border-2 border-accent hover:shadow-xl transition-all relative overflow-hidden">
             <div className="absolute top-4 right-4">
               <Badge className="bg-accent">Выгодно</Badge>
@@ -524,6 +538,7 @@ const Index = () => {
               </ul>
             </CardContent>
           </Card>
+          </FadeInSection>
         </div>
       </div>
     </div>
@@ -578,6 +593,31 @@ const Index = () => {
                 value={orderForm.recipient_phone}
                 onChange={(e) => setOrderForm({...orderForm, recipient_phone: e.target.value})}
               />
+            </div>
+
+            <div className="space-y-2">
+              <Label>QR-код или скриншот заказа</Label>
+              <div className="border-2 border-dashed rounded-lg p-4 text-center hover:border-primary transition-colors cursor-pointer">
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      setOrderQrFile(file);
+                      toast.success('Изображение загружено!');
+                    }
+                  }}
+                  className="hidden"
+                  id="order-qr-upload"
+                />
+                <label htmlFor="order-qr-upload" className="cursor-pointer">
+                  <Icon name="Upload" size={24} className="mx-auto text-muted-foreground mb-2" />
+                  <p className="text-sm text-muted-foreground">
+                    {orderQrFile ? `Загружено: ${orderQrFile.name}` : 'Загрузить QR-код посылки'}
+                  </p>
+                </label>
+              </div>
             </div>
 
             <div className="space-y-2">
@@ -889,24 +929,30 @@ const Index = () => {
           </Card>
 
           <div className="grid md:grid-cols-3 gap-6">
+            <FadeInSection delay={0.1}>
             <Card>
               <CardContent className="pt-6 text-center">
                 <div className="text-4xl font-bold text-primary mb-2">500+</div>
                 <div className="text-muted-foreground">Доставленных посылок</div>
               </CardContent>
             </Card>
+            </FadeInSection>
+            <FadeInSection delay={0.2}>
             <Card>
               <CardContent className="pt-6 text-center">
                 <div className="text-4xl font-bold text-primary mb-2">24/7</div>
                 <div className="text-muted-foreground">Поддержка клиентов</div>
               </CardContent>
             </Card>
+            </FadeInSection>
+            <FadeInSection delay={0.3}>
             <Card>
               <CardContent className="pt-6 text-center">
                 <div className="text-4xl font-bold text-primary mb-2">1 день</div>
                 <div className="text-muted-foreground">Минимальный срок</div>
               </CardContent>
             </Card>
+            </FadeInSection>
           </div>
         </div>
       </div>
