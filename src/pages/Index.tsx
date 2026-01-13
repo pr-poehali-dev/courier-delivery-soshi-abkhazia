@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -8,64 +8,76 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import Icon from '@/components/ui/icon';
 import { toast } from 'sonner';
 
 type OrderStatus = 'processing' | 'courier' | 'transit' | 'ready' | 'delivered';
 
+interface PickupPoint {
+  id: number;
+  name: string;
+  address: string;
+}
+
+interface DeliveryPoint {
+  id: number;
+  name: string;
+  address: string;
+  city: string;
+}
+
 interface Order {
   id: string;
-  recipient: string;
-  phone: string;
-  address: string;
+  order_number: string;
+  recipient_name: string;
+  recipient_phone: string;
+  delivery_address: string;
   weight: number;
-  deliveryType: 'home' | 'pickup';
+  price: number;
+  delivery_type: 'home' | 'pickup';
   status: OrderStatus;
-  createdAt: string;
+  created_at: string;
+  pickup_point_id?: number;
+  delivery_point_id?: number;
+  qr_code?: string;
 }
+
+const API_URLS = {
+  orders: 'https://functions.poehali.dev/4460be83-87c8-4715-bfcb-94d474d9b10f',
+  pickupPoints: 'https://functions.poehali.dev/d6c2dc90-e5ad-4acd-96f2-7d33568364cb',
+  deliveryPoints: 'https://functions.poehali.dev/d6c2dc90-e5ad-4acd-96f2-7d33568364cb?action=delivery',
+  qrCode: 'https://functions.poehali.dev/d6c2dc90-e5ad-4acd-96f2-7d33568364cb?action=qr',
+  auth: 'https://functions.poehali.dev/91156237-3de5-42c1-a37d-6a01b6d78467',
+  settings: 'https://functions.poehali.dev/1ce5a0f2-5d25-4bbe-b1d8-fbb89ed635fd'
+};
 
 const Index = () => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [activeSection, setActiveSection] = useState<'home' | 'tariffs' | 'tracking' | 'cabinet' | 'about' | 'contacts' | 'admin'>('home');
-  const [orders, setOrders] = useState<Order[]>([
-    {
-      id: 'BB-001',
-      recipient: 'Иван Петров',
-      phone: '+7 918 123 45 67',
-      address: 'Сухум, ул. Ленина, 15',
-      weight: 5,
-      deliveryType: 'home',
-      status: 'transit',
-      createdAt: '2026-01-10'
-    }
-  ]);
-  const [pickupPoints, setPickupPoints] = useState([
-    { id: 1, name: 'Озон', address: 'Сочи, ул. Навагинская, 12' },
-    { id: 2, name: 'Wildberries', address: 'Сочи, ул. Конституции, 45' },
-    { id: 3, name: 'Яндекс Маркет', address: 'Сочи, ТРЦ Моремолл' },
-    { id: 4, name: 'Почта России', address: 'Сочи, ул. Горького, 23' },
-    { id: 5, name: 'Ламода', address: 'Сочи, ул. Воровского, 89' },
-    { id: 6, name: 'Золотое яблоко', address: 'Сочи, проспект Курортный, 56' },
-    { id: 7, name: 'СДЭК', address: 'Сочи, ул. Пластунская, 34' },
-    { id: 8, name: 'Boxberry', address: 'Сочи, ул. Донская, 78' }
-  ]);
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [pickupPoints, setPickupPoints] = useState<PickupPoint[]>([]);
+  const [deliveryPoints, setDeliveryPoints] = useState<DeliveryPoint[]>([]);
+  const [calcWeight, setCalcWeight] = useState('');
 
   const [orderForm, setOrderForm] = useState({
-    recipient: '',
-    phone: '',
-    address: '',
+    recipient_name: '',
+    recipient_phone: '',
+    delivery_address: '',
     weight: '',
-    deliveryType: 'home' as 'home' | 'pickup',
+    delivery_type: 'home' as 'home' | 'pickup',
+    pickup_point_id: '',
+    delivery_point_id: '',
     comment: ''
   });
 
   const statusLabels: Record<OrderStatus, string> = {
-    processing: 'Заказ в обработке',
-    courier: 'Заказ у курьера',
-    transit: 'Заказ в доставке в Абхазию',
-    ready: 'Заказ готов к получению',
-    delivered: 'Заказ выдан'
+    processing: 'В обработке',
+    courier: 'У курьера',
+    transit: 'В доставке',
+    ready: 'Готов к получению',
+    delivered: 'Выдан'
   };
 
   const statusColors: Record<OrderStatus, string> = {
@@ -79,6 +91,57 @@ const Index = () => {
   const calculatePrice = (weight: number) => {
     if (weight < 10) return weight * 120;
     return weight * 100;
+  };
+
+  useEffect(() => {
+    fetchPickupPoints();
+    fetchDeliveryPoints();
+    fetchOrders();
+  }, []);
+
+  const fetchPickupPoints = async () => {
+    try {
+      const response = await fetch(API_URLS.pickupPoints);
+      const data = await response.json();
+      setPickupPoints(data);
+    } catch (error) {
+      console.error('Ошибка загрузки пунктов забора:', error);
+    }
+  };
+
+  const fetchDeliveryPoints = async () => {
+    try {
+      const response = await fetch(API_URLS.deliveryPoints);
+      const data = await response.json();
+      setDeliveryPoints(data);
+    } catch (error) {
+      console.error('Ошибка загрузки пунктов выдачи:', error);
+    }
+  };
+
+  const fetchOrders = async () => {
+    try {
+      const response = await fetch(API_URLS.orders);
+      const data = await response.json();
+      setOrders(data);
+    } catch (error) {
+      console.error('Ошибка загрузки заказов:', error);
+    }
+  };
+
+  const generateQRCode = async (orderNumber: string) => {
+    try {
+      const response = await fetch(API_URLS.qrCode, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ order_number: orderNumber })
+      });
+      const data = await response.json();
+      return data.qr_code;
+    } catch (error) {
+      console.error('Ошибка генерации QR-кода:', error);
+      return null;
+    }
   };
 
   const handleLogin = (email: string, password: string) => {
@@ -101,33 +164,68 @@ const Index = () => {
     toast.success('Вы вышли из системы');
   };
 
-  const handleCreateOrder = () => {
-    if (!orderForm.recipient || !orderForm.phone || !orderForm.address || !orderForm.weight) {
+  const handleCreateOrder = async () => {
+    if (!orderForm.recipient_name || !orderForm.recipient_phone || !orderForm.weight) {
       toast.error('Заполните все обязательные поля');
       return;
     }
 
-    const newOrder: Order = {
-      id: `BB-${String(orders.length + 1).padStart(3, '0')}`,
-      recipient: orderForm.recipient,
-      phone: orderForm.phone,
-      address: orderForm.address,
-      weight: Number(orderForm.weight),
-      deliveryType: orderForm.deliveryType,
-      status: 'processing',
-      createdAt: new Date().toISOString().split('T')[0]
-    };
+    if (orderForm.delivery_type === 'pickup' && !orderForm.delivery_point_id) {
+      toast.error('Выберите пункт выдачи в Абхазии');
+      return;
+    }
 
-    setOrders([...orders, newOrder]);
-    setOrderForm({
-      recipient: '',
-      phone: '',
-      address: '',
-      weight: '',
-      deliveryType: 'home',
-      comment: ''
-    });
-    toast.success(`Заказ ${newOrder.id} успешно создан!`);
+    try {
+      const response = await fetch(API_URLS.orders, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...orderForm,
+          weight: Number(orderForm.weight),
+          pickup_point_id: orderForm.pickup_point_id ? Number(orderForm.pickup_point_id) : null,
+          delivery_point_id: orderForm.delivery_point_id ? Number(orderForm.delivery_point_id) : null
+        })
+      });
+
+      const newOrder = await response.json();
+      
+      const qrCode = await generateQRCode(newOrder.order_number);
+      newOrder.qr_code = qrCode;
+
+      setOrders([newOrder, ...orders]);
+      setOrderForm({
+        recipient_name: '',
+        recipient_phone: '',
+        delivery_address: '',
+        weight: '',
+        delivery_type: 'home',
+        pickup_point_id: '',
+        delivery_point_id: '',
+        comment: ''
+      });
+      
+      toast.success(`Заказ ${newOrder.order_number} успешно создан!`);
+      
+      if (qrCode) {
+        const qrWindow = window.open('', '_blank');
+        if (qrWindow) {
+          qrWindow.document.write(`
+            <html>
+              <head><title>QR-код заказа ${newOrder.order_number}</title></head>
+              <body style="display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; font-family: sans-serif;">
+                <h2>QR-код для заказа ${newOrder.order_number}</h2>
+                <img src="${qrCode}" alt="QR Code" style="max-width: 400px;" />
+                <p>Покажите этот QR-код при получении посылки</p>
+                <button onclick="window.print()" style="margin-top: 20px; padding: 10px 20px; font-size: 16px; cursor: pointer;">Распечатать</button>
+              </body>
+            </html>
+          `);
+        }
+      }
+    } catch (error) {
+      console.error('Ошибка создания заказа:', error);
+      toast.error('Не удалось создать заказ');
+    }
   };
 
   const renderHeader = () => (
@@ -267,10 +365,6 @@ const Index = () => {
                 <Icon name="Package" size={20} className="mr-2" />
                 Оформить заказ
               </Button>
-              <Button size="lg" variant="outline" className="text-lg bg-white/10 hover:bg-white/20 text-white border-white/30">
-                <Icon name="Play" size={20} className="mr-2" />
-                Как это работает
-              </Button>
             </div>
           </div>
         </div>
@@ -278,37 +372,31 @@ const Index = () => {
 
       <section className="py-16 bg-gray-50">
         <div className="container mx-auto px-4">
-          <div className="grid md:grid-cols-3 gap-8">
-            <Card className="border-none shadow-lg hover:shadow-xl transition-shadow">
-              <CardHeader>
-                <div className="w-14 h-14 bg-primary/10 rounded-lg flex items-center justify-center mb-4">
-                  <Icon name="Zap" size={28} className="text-primary" />
+          <h2 className="text-3xl font-bold text-center mb-8">Калькулятор стоимости</h2>
+          <Card className="max-w-md mx-auto">
+            <CardContent className="pt-6 space-y-4">
+              <div>
+                <Label>Вес посылки (кг)</Label>
+                <Input 
+                  type="number" 
+                  placeholder="Введите вес" 
+                  value={calcWeight}
+                  onChange={(e) => setCalcWeight(e.target.value)}
+                />
+              </div>
+              {calcWeight && Number(calcWeight) > 0 && (
+                <div className="p-4 bg-primary/10 rounded-lg">
+                  <div className="text-sm text-muted-foreground mb-1">Стоимость доставки:</div>
+                  <div className="text-3xl font-bold text-primary">
+                    {calculatePrice(Number(calcWeight))}₽
+                  </div>
+                  <div className="text-sm text-muted-foreground mt-1">
+                    {Number(calcWeight) < 10 ? 'Тариф: 120₽/кг' : 'Тариф: 100₽/кг (от 10 кг)'}
+                  </div>
                 </div>
-                <CardTitle>Быстро</CardTitle>
-                <CardDescription>Доставка от 1 дня. Забираем посылки ежедневно</CardDescription>
-              </CardHeader>
-            </Card>
-
-            <Card className="border-none shadow-lg hover:shadow-xl transition-shadow">
-              <CardHeader>
-                <div className="w-14 h-14 bg-accent/10 rounded-lg flex items-center justify-center mb-4">
-                  <Icon name="Shield" size={28} className="text-accent" />
-                </div>
-                <CardTitle>Надёжно</CardTitle>
-                <CardDescription>Страхование груза и гарантия доставки</CardDescription>
-              </CardHeader>
-            </Card>
-
-            <Card className="border-none shadow-lg hover:shadow-xl transition-shadow">
-              <CardHeader>
-                <div className="w-14 h-14 bg-green-100 rounded-lg flex items-center justify-center mb-4">
-                  <Icon name="DollarSign" size={28} className="text-green-600" />
-                </div>
-                <CardTitle>Выгодно</CardTitle>
-                <CardDescription>От 100₽ за килограмм при весе от 10 кг</CardDescription>
-              </CardHeader>
-            </Card>
-          </div>
+              )}
+            </CardContent>
+          </Card>
         </div>
       </section>
 
@@ -316,10 +404,11 @@ const Index = () => {
         <div className="container mx-auto px-4">
           <h2 className="text-3xl md:text-4xl font-bold text-center mb-12">Откуда забираем посылки</h2>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-            {['Озон', 'Wildberries', 'Яндекс Маркет', 'Почта России', 'Ламода', 'Золотое яблоко', 'СДЭК', 'Boxberry'].map((service) => (
-              <Card key={service} className="border-2 hover:border-primary transition-colors cursor-pointer">
-                <CardContent className="flex items-center justify-center p-6">
-                  <span className="font-semibold text-lg">{service}</span>
+            {pickupPoints.map((service) => (
+              <Card key={service.id} className="border-2 hover:border-primary transition-colors">
+                <CardContent className="p-4">
+                  <div className="font-semibold text-center mb-2">{service.name}</div>
+                  <div className="text-xs text-muted-foreground text-center">{service.address}</div>
                 </CardContent>
               </Card>
             ))}
@@ -399,29 +488,6 @@ const Index = () => {
             </CardContent>
           </Card>
         </div>
-
-        <Card className="max-w-2xl mx-auto mt-12 bg-gradient-to-r from-blue-50 to-orange-50">
-          <CardHeader>
-            <CardTitle className="text-center">Калькулятор стоимости</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div>
-                <Label>Вес посылки (кг)</Label>
-                <Input type="number" placeholder="Введите вес" id="calc-weight" />
-              </div>
-              <Button className="w-full" onClick={() => {
-                const weight = Number((document.getElementById('calc-weight') as HTMLInputElement).value);
-                if (weight > 0) {
-                  const price = calculatePrice(weight);
-                  toast.success(`Стоимость доставки: ${price}₽`);
-                }
-              }}>
-                Рассчитать стоимость
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
       </div>
     </div>
   );
@@ -438,11 +504,30 @@ const Index = () => {
           </CardHeader>
           <CardContent className="space-y-6">
             <div className="space-y-2">
+              <Label>Откуда забрать посылку *</Label>
+              <Select 
+                value={orderForm.pickup_point_id}
+                onValueChange={(value) => setOrderForm({...orderForm, pickup_point_id: value})}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Выберите пункт забора в Сочи" />
+                </SelectTrigger>
+                <SelectContent>
+                  {pickupPoints.map((point) => (
+                    <SelectItem key={point.id} value={String(point.id)}>
+                      {point.name} - {point.address}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
               <Label>Имя получателя *</Label>
               <Input 
                 placeholder="Иван Иванов" 
-                value={orderForm.recipient}
-                onChange={(e) => setOrderForm({...orderForm, recipient: e.target.value})}
+                value={orderForm.recipient_name}
+                onChange={(e) => setOrderForm({...orderForm, recipient_name: e.target.value})}
               />
             </div>
 
@@ -451,17 +536,8 @@ const Index = () => {
               <Input 
                 type="tel" 
                 placeholder="+7 918 123 45 67"
-                value={orderForm.phone}
-                onChange={(e) => setOrderForm({...orderForm, phone: e.target.value})}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label>Адрес доставки *</Label>
-              <Input 
-                placeholder="Сухум, ул. Ленина, 15"
-                value={orderForm.address}
-                onChange={(e) => setOrderForm({...orderForm, address: e.target.value})}
+                value={orderForm.recipient_phone}
+                onChange={(e) => setOrderForm({...orderForm, recipient_phone: e.target.value})}
               />
             </div>
 
@@ -482,7 +558,7 @@ const Index = () => {
 
             <div className="space-y-3">
               <Label>Способ получения *</Label>
-              <RadioGroup value={orderForm.deliveryType} onValueChange={(value: 'home' | 'pickup') => setOrderForm({...orderForm, deliveryType: value})}>
+              <RadioGroup value={orderForm.delivery_type} onValueChange={(value: 'home' | 'pickup') => setOrderForm({...orderForm, delivery_type: value})}>
                 <div className="flex items-center space-x-2 border rounded-lg p-4 cursor-pointer hover:bg-gray-50">
                   <RadioGroupItem value="home" id="home" />
                   <Label htmlFor="home" className="flex items-center gap-2 cursor-pointer flex-1">
@@ -505,6 +581,36 @@ const Index = () => {
                 </div>
               </RadioGroup>
             </div>
+
+            {orderForm.delivery_type === 'home' ? (
+              <div className="space-y-2">
+                <Label>Адрес доставки *</Label>
+                <Input 
+                  placeholder="Сухум, ул. Ленина, 15"
+                  value={orderForm.delivery_address}
+                  onChange={(e) => setOrderForm({...orderForm, delivery_address: e.target.value})}
+                />
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <Label>Пункт выдачи в Абхазии *</Label>
+                <Select 
+                  value={orderForm.delivery_point_id}
+                  onValueChange={(value) => setOrderForm({...orderForm, delivery_point_id: value})}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Выберите пункт выдачи" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {deliveryPoints.map((point) => (
+                      <SelectItem key={point.id} value={String(point.id)}>
+                        {point.city} - {point.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
 
             <div className="space-y-2">
               <Label>Комментарий</Label>
@@ -530,82 +636,62 @@ const Index = () => {
       <div className="container mx-auto px-4">
         <h2 className="text-4xl font-bold mb-8">Личный кабинет</h2>
         
-        <div className="grid gap-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Мои заказы</CardTitle>
-              <CardDescription>История и отслеживание доставок</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {orders.length === 0 ? (
-                <div className="text-center py-12">
-                  <Icon name="Package" size={48} className="mx-auto text-muted-foreground mb-4" />
-                  <p className="text-muted-foreground">У вас пока нет заказов</p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {orders.map((order) => (
-                    <Card key={order.id} className="border-2">
-                      <CardContent className="pt-6">
-                        <div className="flex items-start justify-between mb-4">
-                          <div>
-                            <div className="font-semibold text-lg mb-1">Заказ {order.id}</div>
-                            <div className="text-sm text-muted-foreground">{order.createdAt}</div>
-                          </div>
-                          <Badge className={statusColors[order.status]}>
-                            {statusLabels[order.status]}
-                          </Badge>
+        <Card>
+          <CardHeader>
+            <CardTitle>Мои заказы</CardTitle>
+            <CardDescription>История и отслеживание доставок</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {orders.length === 0 ? (
+              <div className="text-center py-12">
+                <Icon name="Package" size={48} className="mx-auto text-muted-foreground mb-4" />
+                <p className="text-muted-foreground">У вас пока нет заказов</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {orders.map((order) => (
+                  <Card key={order.id} className="border-2">
+                    <CardContent className="pt-6">
+                      <div className="flex items-start justify-between mb-4">
+                        <div>
+                          <div className="font-semibold text-lg mb-1">Заказ {order.order_number}</div>
+                          <div className="text-sm text-muted-foreground">{order.created_at}</div>
                         </div>
-                        
-                        <div className="grid md:grid-cols-2 gap-4 text-sm">
-                          <div>
-                            <div className="text-muted-foreground">Получатель</div>
-                            <div className="font-medium">{order.recipient}</div>
-                          </div>
-                          <div>
-                            <div className="text-muted-foreground">Телефон</div>
-                            <div className="font-medium">{order.phone}</div>
-                          </div>
-                          <div>
-                            <div className="text-muted-foreground">Адрес</div>
-                            <div className="font-medium">{order.address}</div>
-                          </div>
-                          <div>
-                            <div className="text-muted-foreground">Вес / Стоимость</div>
-                            <div className="font-medium">{order.weight} кг / {calculatePrice(order.weight)}₽</div>
-                          </div>
+                        <Badge className={statusColors[order.status]}>
+                          {statusLabels[order.status]}
+                        </Badge>
+                      </div>
+                      
+                      <div className="grid md:grid-cols-2 gap-4 text-sm mb-4">
+                        <div>
+                          <div className="text-muted-foreground">Получатель</div>
+                          <div className="font-medium">{order.recipient_name}</div>
                         </div>
+                        <div>
+                          <div className="text-muted-foreground">Телефон</div>
+                          <div className="font-medium">{order.recipient_phone}</div>
+                        </div>
+                        <div>
+                          <div className="text-muted-foreground">Вес / Стоимость</div>
+                          <div className="font-medium">{order.weight} кг / {order.price}₽</div>
+                        </div>
+                      </div>
 
-                        <div className="mt-6">
-                          <div className="flex items-center justify-between mb-2">
-                            <span className="text-sm font-medium">Статус доставки</span>
-                          </div>
-                          <div className="relative">
-                            <div className="absolute top-4 left-0 right-0 h-1 bg-gray-200"></div>
-                            <div className="relative flex justify-between">
-                              {(['processing', 'courier', 'transit', 'ready', 'delivered'] as OrderStatus[]).map((status, idx) => {
-                                const currentIdx = (['processing', 'courier', 'transit', 'ready', 'delivered'] as OrderStatus[]).indexOf(order.status);
-                                const isActive = idx <= currentIdx;
-                                return (
-                                  <div key={status} className="flex flex-col items-center">
-                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center ${isActive ? 'bg-primary text-white' : 'bg-gray-200'} relative z-10`}>
-                                      {isActive ? <Icon name="Check" size={16} /> : <div className="w-2 h-2 rounded-full bg-gray-400"></div>}
-                                    </div>
-                                    <div className="text-xs mt-2 text-center max-w-[80px]">{statusLabels[status].replace('Заказ ', '')}</div>
-                                  </div>
-                                );
-                              })}
-                            </div>
+                      {order.qr_code && (
+                        <div className="mt-4 p-4 bg-gray-50 rounded-lg flex items-center gap-4">
+                          <img src={order.qr_code} alt="QR Code" className="w-24 h-24" />
+                          <div className="text-sm text-muted-foreground">
+                            Покажите этот QR-код при получении посылки
                           </div>
                         </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
     </div>
   );
@@ -618,8 +704,8 @@ const Index = () => {
         <Tabs defaultValue="orders">
           <TabsList>
             <TabsTrigger value="orders">Заказы</TabsTrigger>
-            <TabsTrigger value="points">Пункты выдачи</TabsTrigger>
-            <TabsTrigger value="settings">Настройки</TabsTrigger>
+            <TabsTrigger value="pickup">Пункты забора (Сочи)</TabsTrigger>
+            <TabsTrigger value="delivery">Пункты выдачи (Абхазия)</TabsTrigger>
           </TabsList>
 
           <TabsContent value="orders" className="space-y-4 mt-6">
@@ -633,18 +719,25 @@ const Index = () => {
                     <CardContent className="pt-6">
                       <div className="flex items-start justify-between mb-4">
                         <div>
-                          <div className="font-semibold text-lg">Заказ {order.id}</div>
-                          <div className="text-sm text-muted-foreground">{order.recipient} • {order.phone}</div>
+                          <div className="font-semibold text-lg">Заказ {order.order_number}</div>
+                          <div className="text-sm text-muted-foreground">{order.recipient_name} • {order.recipient_phone}</div>
                         </div>
                         <select 
                           className="border rounded px-3 py-1 text-sm"
                           value={order.status}
-                          onChange={(e) => {
-                            const newOrders = orders.map(o => 
-                              o.id === order.id ? {...o, status: e.target.value as OrderStatus} : o
-                            );
-                            setOrders(newOrders);
-                            toast.success('Статус заказа обновлён');
+                          onChange={async (e) => {
+                            const newStatus = e.target.value as OrderStatus;
+                            try {
+                              await fetch(API_URLS.orders, {
+                                method: 'PUT',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ order_id: order.id, status: newStatus })
+                              });
+                              fetchOrders();
+                              toast.success('Статус заказа обновлён');
+                            } catch (error) {
+                              toast.error('Ошибка обновления статуса');
+                            }
                           }}
                         >
                           <option value="processing">В обработке</option>
@@ -655,8 +748,7 @@ const Index = () => {
                         </select>
                       </div>
                       <div className="text-sm space-y-1">
-                        <div><span className="text-muted-foreground">Адрес:</span> {order.address}</div>
-                        <div><span className="text-muted-foreground">Вес:</span> {order.weight} кг • <span className="text-muted-foreground">Стоимость:</span> {calculatePrice(order.weight)}₽</div>
+                        <div><span className="text-muted-foreground">Вес:</span> {order.weight} кг • <span className="text-muted-foreground">Стоимость:</span> {order.price}₽</div>
                       </div>
                     </CardContent>
                   </Card>
@@ -665,11 +757,10 @@ const Index = () => {
             </Card>
           </TabsContent>
 
-          <TabsContent value="points" className="space-y-4 mt-6">
+          <TabsContent value="pickup" className="space-y-4 mt-6">
             <Card>
               <CardHeader>
-                <CardTitle>Пункты выдачи</CardTitle>
-                <CardDescription>Управление пунктами забора посылок</CardDescription>
+                <CardTitle>Пункты забора посылок в Сочи</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 {pickupPoints.map((point) => (
@@ -678,86 +769,26 @@ const Index = () => {
                       <div className="font-medium">{point.name}</div>
                       <div className="text-sm text-muted-foreground">{point.address}</div>
                     </div>
-                    <div className="flex gap-2">
-                      <Button variant="outline" size="sm">
-                        <Icon name="Edit" size={16} />
-                      </Button>
-                      <Button variant="outline" size="sm" onClick={() => {
-                        setPickupPoints(pickupPoints.filter(p => p.id !== point.id));
-                        toast.success('Пункт выдачи удалён');
-                      }}>
-                        <Icon name="Trash2" size={16} />
-                      </Button>
-                    </div>
                   </div>
                 ))}
-                
-                <Dialog>
-                  <DialogTrigger asChild>
-                    <Button className="w-full">
-                      <Icon name="Plus" size={16} className="mr-2" />
-                      Добавить пункт выдачи
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>Новый пункт выдачи</DialogTitle>
-                    </DialogHeader>
-                    <div className="space-y-4">
-                      <div className="space-y-2">
-                        <Label>Название</Label>
-                        <Input id="new-point-name" placeholder="Озон" />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Адрес</Label>
-                        <Input id="new-point-address" placeholder="Сочи, ул. Навагинская, 12" />
-                      </div>
-                      <Button className="w-full" onClick={() => {
-                        const name = (document.getElementById('new-point-name') as HTMLInputElement).value;
-                        const address = (document.getElementById('new-point-address') as HTMLInputElement).value;
-                        if (name && address) {
-                          setPickupPoints([...pickupPoints, { id: Date.now(), name, address }]);
-                          toast.success('Пункт выдачи добавлен');
-                        }
-                      }}>
-                        Добавить
-                      </Button>
-                    </div>
-                  </DialogContent>
-                </Dialog>
               </CardContent>
             </Card>
           </TabsContent>
 
-          <TabsContent value="settings" className="space-y-4 mt-6">
+          <TabsContent value="delivery" className="space-y-4 mt-6">
             <Card>
               <CardHeader>
-                <CardTitle>Настройки сайта</CardTitle>
+                <CardTitle>Пункты выдачи в Абхазии</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="space-y-2">
-                  <Label>Название компании</Label>
-                  <Input defaultValue="Бери Бокс" />
-                </div>
-                <div className="space-y-2">
-                  <Label>Телефон поддержки</Label>
-                  <Input defaultValue="+7 918 123 45 67" />
-                </div>
-                <div className="space-y-2">
-                  <Label>Email</Label>
-                  <Input defaultValue="info@beribox.ru" />
-                </div>
-                <div className="space-y-2">
-                  <Label>Базовый тариф (до 10 кг), ₽/кг</Label>
-                  <Input type="number" defaultValue="120" />
-                </div>
-                <div className="space-y-2">
-                  <Label>Оптимальный тариф (от 10 кг), ₽/кг</Label>
-                  <Input type="number" defaultValue="100" />
-                </div>
-                <Button onClick={() => toast.success('Настройки сохранены')}>
-                  Сохранить настройки
-                </Button>
+              <CardContent className="space-y-4">
+                {deliveryPoints.map((point) => (
+                  <div key={point.id} className="flex items-center justify-between p-4 border rounded-lg">
+                    <div>
+                      <div className="font-medium">{point.name}</div>
+                      <div className="text-sm text-muted-foreground">{point.city}, {point.address}</div>
+                    </div>
+                  </div>
+                ))}
               </CardContent>
             </Card>
           </TabsContent>

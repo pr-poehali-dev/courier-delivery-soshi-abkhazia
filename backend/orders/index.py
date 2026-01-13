@@ -90,8 +90,10 @@ def handler(event: dict, context):
             weight = float(body.get('weight', 0))
             delivery_type = body.get('delivery_type', 'home')
             comment = body.get('comment', '').strip()
+            pickup_point_id = body.get('pickup_point_id')
+            delivery_point_id = body.get('delivery_point_id')
             
-            if not recipient_name or not recipient_phone or not delivery_address or weight <= 0:
+            if not recipient_name or not recipient_phone or weight <= 0:
                 return {
                     'statusCode': 400,
                     'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
@@ -99,15 +101,23 @@ def handler(event: dict, context):
                     'isBase64Encoded': False
                 }
             
+            if delivery_type == 'pickup' and not delivery_point_id:
+                return {
+                    'statusCode': 400,
+                    'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                    'body': json.dumps({'error': 'Выберите пункт выдачи'}),
+                    'isBase64Encoded': False
+                }
+            
             price = calculate_price(weight)
             
             cursor.execute(
                 """INSERT INTO orders (order_number, user_id, recipient_name, recipient_phone, 
-                   delivery_address, weight, price, delivery_type, comment, status) 
-                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s) 
+                   delivery_address, weight, price, delivery_type, comment, status, pickup_point_id, delivery_point_id) 
+                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) 
                    RETURNING *""",
                 ('TEMP', user_id, recipient_name, recipient_phone, delivery_address, 
-                 weight, price, delivery_type, comment, 'processing')
+                 weight, price, delivery_type, comment, 'processing', pickup_point_id, delivery_point_id)
             )
             order = cursor.fetchone()
             order_dict = dict(order)
