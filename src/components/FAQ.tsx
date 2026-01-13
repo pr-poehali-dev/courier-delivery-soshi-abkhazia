@@ -100,7 +100,7 @@ const FAQ = () => {
                   +7 918 123 45 67
                 </a>
                 <a 
-                  href="https://t.me/beribox_support" 
+                  href="https://t.me/berrybox_support" 
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center justify-center gap-2 px-6 py-3 bg-white/10 backdrop-blur text-white border-2 border-white rounded-lg font-semibold hover:bg-white/20 transition-colors"

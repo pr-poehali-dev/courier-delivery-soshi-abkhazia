@@ -47,7 +47,7 @@ const ChatWidget = () => {
             </a>
 
             <a
-              href="https://t.me/beribox_support"
+              href="https://t.me/berrybox_support"
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center gap-3 p-4 border-2 rounded-lg hover:border-primary hover:bg-primary/5 transition-all"
@@ -57,7 +57,7 @@ const ChatWidget = () => {
               </div>
               <div>
                 <div className="font-semibold">Telegram</div>
-                <div className="text-sm text-muted-foreground">@beribox_support</div>
+                <div className="text-sm text-muted-foreground">@berrybox_support</div>
               </div>
             </a>
 
@@ -77,7 +77,7 @@ const ChatWidget = () => {
             </a>
 
             <a
-              href="mailto:info@beribox.ru"
+              href="mailto:info@berrybox.ru"
               className="flex items-center gap-3 p-4 border-2 rounded-lg hover:border-primary hover:bg-primary/5 transition-all"
             >
               <div className="w-10 h-10 bg-orange-100 rounded-full flex items-center justify-center">
@@ -85,7 +85,7 @@ const ChatWidget = () => {
               </div>
               <div>
                 <div className="font-semibold">Email</div>
-                <div className="text-sm text-muted-foreground">info@beribox.ru</div>
+                <div className="text-sm text-muted-foreground">info@berrybox.ru</div>
               </div>
             </a>
 

@@ -1,11 +1,10 @@
 {
   "tests": [
     {
-      "name": "Test get all orders",
+      "name": "Test search order by number",
       "method": "GET",
-      "path": "/",
+      "path": "/?order_number=BB-001",
       "expectedStatus": 200,
-      "expectedBody": [],
       "bodyMatcher": "partial"
     },
     {
@@ -13,6 +12,7 @@
       "method": "POST",
       "path": "/",
       "body": {
+        "user_id": 1,
         "recipient_name": "Иван Петров",
         "recipient_phone": "+7 918 123 45 67",
         "delivery_address": "Сухум, ул. Ленина, 15",
@@ -23,8 +23,8 @@
       "expectedStatus": 201,
       "expectedBody": {
         "order_number": "string",
-        "recipient_name": "string",
-        "price": "number"
+        "recipient_name": "Иван Петров",
+        "status": "processing"
       },
       "bodyMatcher": "partial"
     }

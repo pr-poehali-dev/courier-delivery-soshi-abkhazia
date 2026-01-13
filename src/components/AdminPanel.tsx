@@ -40,17 +40,27 @@ interface Settings {
   chat_whatsapp: string;
 }
 
+interface OrderStatus {
+  id: number;
+  status_key: string;
+  status_label: string;
+  status_color: string;
+  order_position: number;
+}
+
 const API_URLS = {
   pickupPoints: 'https://functions.poehali.dev/d6c2dc90-e5ad-4acd-96f2-7d33568364cb',
   deliveryPoints: 'https://functions.poehali.dev/d6c2dc90-e5ad-4acd-96f2-7d33568364cb?action=delivery',
   settings: 'https://functions.poehali.dev/1ce5a0f2-5d25-4bbe-b1d8-fbb89ed635fd',
-  faq: 'https://functions.poehali.dev/1ce5a0f2-5d25-4bbe-b1d8-fbb89ed635fd?resource=faq'
+  faq: 'https://functions.poehali.dev/1ce5a0f2-5d25-4bbe-b1d8-fbb89ed635fd?resource=faq',
+  statuses: 'https://functions.poehali.dev/1ce5a0f2-5d25-4bbe-b1d8-fbb89ed635fd?resource=statuses'
 };
 
 const AdminPanel = () => {
   const [faqItems, setFaqItems] = useState<FAQItem[]>([]);
   const [pickupPoints, setPickupPoints] = useState<PickupPoint[]>([]);
   const [deliveryPoints, setDeliveryPoints] = useState<DeliveryPoint[]>([]);
+  const [orderStatuses, setOrderStatuses] = useState<OrderStatus[]>([]);
   const [settings, setSettings] = useState<Settings>({
     company_name: '',
     support_phone: '',
@@ -68,17 +78,19 @@ const AdminPanel = () => {
 
   const fetchAll = async () => {
     try {
-      const [faqRes, pickupRes, deliveryRes, settingsRes] = await Promise.all([
+      const [faqRes, pickupRes, deliveryRes, settingsRes, statusesRes] = await Promise.all([
         fetch(API_URLS.faq),
         fetch(API_URLS.pickupPoints),
         fetch(API_URLS.deliveryPoints),
-        fetch(API_URLS.settings)
+        fetch(API_URLS.settings),
+        fetch(API_URLS.statuses)
       ]);
 
       setFaqItems(await faqRes.json());
       setPickupPoints(await pickupRes.json());
       setDeliveryPoints(await deliveryRes.json());
       setSettings(await settingsRes.json());
+      setOrderStatuses(await statusesRes.json());
     } catch (error) {
       console.error('Ошибка загрузки данных:', error);
     }
@@ -153,12 +165,74 @@ const AdminPanel = () => {
     }
   };
 
+  const handleDeletePickupPoint = async (id: number) => {
+    try {
+      await fetch(API_URLS.pickupPoints, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id })
+      });
+      fetchAll();
+      toast.success('Пункт забора удалён');
+    } catch (error) {
+      toast.error('Ошибка удаления пункта');
+    }
+  };
+
+  const handleDeleteDeliveryPoint = async (id: number) => {
+    try {
+      await fetch(API_URLS.deliveryPoints, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id })
+      });
+      fetchAll();
+      toast.success('Пункт выдачи удалён');
+    } catch (error) {
+      toast.error('Ошибка удаления пункта');
+    }
+  };
+
+  const handleAddStatus = async (statusKey: string, statusLabel: string, statusColor: string) => {
+    try {
+      await fetch(API_URLS.statuses, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          status_key: statusKey, 
+          status_label: statusLabel, 
+          status_color: statusColor,
+          order_position: orderStatuses.length + 1
+        })
+      });
+      fetchAll();
+      toast.success('Статус добавлен');
+    } catch (error) {
+      toast.error('Ошибка добавления статуса');
+    }
+  };
+
+  const handleDeleteStatus = async (id: number) => {
+    try {
+      await fetch(API_URLS.statuses, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id })
+      });
+      fetchAll();
+      toast.success('Статус удалён');
+    } catch (error) {
+      toast.error('Ошибка удаления статуса');
+    }
+  };
+
   return (
     <div className="py-8">
       <Tabs defaultValue="settings" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="settings">Настройки</TabsTrigger>
           <TabsTrigger value="faq">FAQ</TabsTrigger>
+          <TabsTrigger value="statuses">Статусы</TabsTrigger>
           <TabsTrigger value="pickup">Пункты забора</TabsTrigger>
           <TabsTrigger value="delivery">Пункты выдачи</TabsTrigger>
         </TabsList>
@@ -307,6 +381,75 @@ const AdminPanel = () => {
           </Card>
         </TabsContent>
 
+        <TabsContent value="statuses">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>Статусы заказов</CardTitle>
+                  <CardDescription>Управление статусами доставки</CardDescription>
+                </div>
+                <Dialog>
+                  <DialogTrigger asChild>
+                    <Button>
+                      <Icon name="Plus" size={16} className="mr-2" />
+                      Добавить статус
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Новый статус</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <Label>Ключ статуса (латиница)</Label>
+                        <Input id="status-key" placeholder="waiting_payment" />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Название статуса</Label>
+                        <Input id="status-label" placeholder="Ожидает оплаты" />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Цвет (Tailwind класс)</Label>
+                        <Input id="status-color" placeholder="bg-orange-100 text-orange-800" />
+                      </div>
+                      <Button className="w-full" onClick={() => {
+                        const key = (document.getElementById('status-key') as HTMLInputElement).value;
+                        const label = (document.getElementById('status-label') as HTMLInputElement).value;
+                        const color = (document.getElementById('status-color') as HTMLInputElement).value;
+                        if (key && label && color) {
+                          handleAddStatus(key, label, color);
+                        }
+                      }}>
+                        Добавить
+                      </Button>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {orderStatuses.map((status) => (
+                <div key={status.id} className="flex items-center justify-between p-4 border-2 rounded-lg">
+                  <div className="flex items-center gap-4">
+                    <div className={`px-3 py-1 rounded-full text-sm ${status.status_color}`}>
+                      {status.status_label}
+                    </div>
+                    <code className="text-xs text-muted-foreground">{status.status_key}</code>
+                  </div>
+                  <Button 
+                    variant="ghost" 
+                    size="sm"
+                    onClick={() => handleDeleteStatus(status.id)}
+                  >
+                    <Icon name="Trash2" size={16} />
+                  </Button>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
         <TabsContent value="pickup">
           <Card>
             <CardHeader>
@@ -356,6 +499,13 @@ const AdminPanel = () => {
                     <div className="font-semibold">{point.name}</div>
                     <div className="text-sm text-muted-foreground">{point.address}</div>
                   </div>
+                  <Button 
+                    variant="ghost" 
+                    size="sm"
+                    onClick={() => handleDeletePickupPoint(point.id)}
+                  >
+                    <Icon name="Trash2" size={16} />
+                  </Button>
                 </div>
               ))}
             </CardContent>
@@ -416,6 +566,13 @@ const AdminPanel = () => {
                     <div className="font-semibold">{point.name}</div>
                     <div className="text-sm text-muted-foreground">{point.city}, {point.address}</div>
                   </div>
+                  <Button 
+                    variant="ghost" 
+                    size="sm"
+                    onClick={() => handleDeleteDeliveryPoint(point.id)}
+                  >
+                    <Icon name="Trash2" size={16} />
+                  </Button>
                 </div>
               ))}
             </CardContent>

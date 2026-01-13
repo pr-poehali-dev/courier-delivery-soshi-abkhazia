@@ -52,6 +52,28 @@ def handler(event: dict, context):
             params = event.get('queryStringParameters', {}) or {}
             user_id = params.get('user_id')
             order_id = params.get('order_id')
+            order_number = params.get('order_number')
+            
+            if order_number:
+                cursor.execute(
+                    "SELECT * FROM orders WHERE order_number = %s",
+                    (order_number,)
+                )
+                order = cursor.fetchone()
+                if order:
+                    return {
+                        'statusCode': 200,
+                        'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                        'body': json.dumps(dict(order), default=str),
+                        'isBase64Encoded': False
+                    }
+                else:
+                    return {
+                        'statusCode': 404,
+                        'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                        'body': json.dumps({'error': 'Заказ не найден'}),
+                        'isBase64Encoded': False
+                    }
             
             if order_id:
                 cursor.execute(

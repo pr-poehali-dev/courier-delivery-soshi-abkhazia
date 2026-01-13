@@ -30,7 +30,81 @@ def handler(event: dict, context):
         params = event.get('queryStringParameters', {}) or {}
         resource = params.get('resource', 'settings')
         
-        if resource == 'faq':
+        if resource == 'statuses':
+            if method == 'GET':
+                cursor.execute("SELECT * FROM order_statuses WHERE is_active = TRUE ORDER BY order_position")
+                statuses = cursor.fetchall()
+                return {
+                    'statusCode': 200,
+                    'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                    'body': json.dumps([dict(item) for item in statuses], default=str),
+                    'isBase64Encoded': False
+                }
+            
+            elif method == 'POST':
+                body = json.loads(event.get('body', '{}'))
+                status_key = body.get('status_key', '').strip()
+                status_label = body.get('status_label', '').strip()
+                status_color = body.get('status_color', 'bg-gray-100 text-gray-800').strip()
+                order_position = body.get('order_position', 0)
+                
+                if not status_key or not status_label:
+                    return {
+                        'statusCode': 400,
+                        'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                        'body': json.dumps({'error': 'Ключ и название статуса обязательны'}),
+                        'isBase64Encoded': False
+                    }
+                
+                cursor.execute(
+                    "INSERT INTO order_statuses (status_key, status_label, status_color, order_position) VALUES (%s, %s, %s, %s) RETURNING *",
+                    (status_key, status_label, status_color, order_position)
+                )
+                status_item = cursor.fetchone()
+                conn.commit()
+                
+                return {
+                    'statusCode': 201,
+                    'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                    'body': json.dumps(dict(status_item), default=str),
+                    'isBase64Encoded': False
+                }
+            
+            elif method == 'DELETE':
+                body = json.loads(event.get('body', '{}'))
+                status_id = body.get('id')
+                
+                if not status_id:
+                    return {
+                        'statusCode': 400,
+                        'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                        'body': json.dumps({'error': 'ID обязателен'}),
+                        'isBase64Encoded': False
+                    }
+                
+                cursor.execute(
+                    "UPDATE order_statuses SET is_active = FALSE WHERE id = %s RETURNING *",
+                    (status_id,)
+                )
+                status_item = cursor.fetchone()
+                conn.commit()
+                
+                if status_item:
+                    return {
+                        'statusCode': 200,
+                        'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                        'body': json.dumps({'success': True}),
+                        'isBase64Encoded': False
+                    }
+                else:
+                    return {
+                        'statusCode': 404,
+                        'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                        'body': json.dumps({'error': 'Статус не найден'}),
+                        'isBase64Encoded': False
+                    }
+        
+        elif resource == 'faq':
             if method == 'GET':
                 cursor.execute("SELECT * FROM faq WHERE is_active = TRUE ORDER BY order_position")
                 faq_items = cursor.fetchall()

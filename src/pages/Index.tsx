@@ -15,6 +15,7 @@ import Calculator from '@/components/Calculator';
 import FAQ from '@/components/FAQ';
 import ChatWidget from '@/components/ChatWidget';
 import AdminPanel from '@/components/AdminPanel';
+import OrderTracking from '@/components/OrderTracking';
 
 type OrderStatus = 'processing' | 'courier' | 'transit' | 'ready' | 'delivered';
 
@@ -59,6 +60,8 @@ const API_URLS = {
 const Index = () => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [currentUser, setCurrentUser] = useState<{id: number, email: string, name: string, is_admin: boolean} | null>(null);
+  const [trackingSearch, setTrackingSearch] = useState('');
   const [activeSection, setActiveSection] = useState<'home' | 'tariffs' | 'tracking' | 'cabinet' | 'about' | 'contacts' | 'admin'>('home');
   const [orders, setOrders] = useState<Order[]>([]);
   const [pickupPoints, setPickupPoints] = useState<PickupPoint[]>([]);
@@ -103,8 +106,10 @@ const Index = () => {
   useEffect(() => {
     fetchPickupPoints();
     fetchDeliveryPoints();
-    fetchOrders();
-  }, []);
+    if (currentUser) {
+      fetchOrders();
+    }
+  }, [currentUser]);
 
   const fetchPickupPoints = async () => {
     try {
@@ -128,7 +133,10 @@ const Index = () => {
 
   const fetchOrders = async () => {
     try {
-      const response = await fetch(API_URLS.orders);
+      const url = currentUser && !isAdmin 
+        ? `${API_URLS.orders}?user_id=${currentUser.id}` 
+        : API_URLS.orders;
+      const response = await fetch(url);
       const data = await response.json();
       setOrders(data);
     } catch (error) {
@@ -151,27 +159,68 @@ const Index = () => {
     }
   };
 
-  const handleLogin = (email: string, password: string) => {
-    if (email === 'admin@beribox.ru' && password === 'admin123') {
-      setIsAdmin(true);
-      setIsLoggedIn(true);
-      setActiveSection('admin');
-      toast.success('Добро пожаловать в админ-панель!');
-    } else {
-      setIsLoggedIn(true);
-      setActiveSection('cabinet');
-      toast.success('Вы успешно вошли в систему');
+  const handleLogin = async (email: string, password: string) => {
+    try {
+      const response = await fetch(API_URLS.auth, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'login', email, password })
+      });
+      const data = await response.json();
+      
+      if (response.ok && data.user) {
+        setCurrentUser(data.user);
+        setIsLoggedIn(true);
+        setIsAdmin(data.user.is_admin);
+        setActiveSection(data.user.is_admin ? 'admin' : 'cabinet');
+        toast.success(data.user.is_admin ? 'Добро пожаловать в админ-панель!' : 'Вы успешно вошли в систему');
+        fetchOrders();
+      } else {
+        toast.error(data.error || 'Ошибка входа');
+      }
+    } catch (error) {
+      toast.error('Ошибка подключения к серверу');
     }
   };
 
   const handleLogout = () => {
     setIsLoggedIn(false);
     setIsAdmin(false);
+    setCurrentUser(null);
     setActiveSection('home');
     toast.success('Вы вышли из системы');
   };
 
+  const handleRegister = async (name: string, email: string, phone: string, password: string) => {
+    try {
+      const response = await fetch(API_URLS.auth, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'register', name, email, phone, password })
+      });
+      const data = await response.json();
+      
+      if (response.ok && data.user) {
+        setCurrentUser(data.user);
+        setIsLoggedIn(true);
+        setIsAdmin(data.user.is_admin);
+        setActiveSection('cabinet');
+        toast.success('Регистрация успешна!');
+        fetchOrders();
+      } else {
+        toast.error(data.error || 'Ошибка регистрации');
+      }
+    } catch (error) {
+      toast.error('Ошибка подключения к серверу');
+    }
+  };
+
   const handleCreateOrder = async () => {
+    if (!currentUser) {
+      toast.error('Войдите в систему для оформления заказа');
+      return;
+    }
+
     if (!orderForm.recipient_name || !orderForm.recipient_phone || !orderForm.weight) {
       toast.error('Заполните все обязательные поля');
       return;
@@ -188,6 +237,7 @@ const Index = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...orderForm,
+          user_id: currentUser.id,
           weight: Number(orderForm.weight),
           length: orderForm.length ? Number(orderForm.length) : null,
           width: orderForm.width ? Number(orderForm.width) : null,
@@ -247,7 +297,7 @@ const Index = () => {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 cursor-pointer" onClick={() => setActiveSection('home')}>
             <Icon name="Package" size={32} className="text-primary" />
-            <span className="text-2xl font-bold text-primary">Бери Бокс</span>
+            <span className="text-2xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">Berrybox</span>
           </div>
           
           <nav className="hidden md:flex items-center gap-6">
@@ -321,29 +371,31 @@ const Index = () => {
                       }}>
                         Войти
                       </Button>
-                      <p className="text-xs text-muted-foreground text-center">
-                        Админ: admin@beribox.ru / admin123
-                      </p>
+
                     </TabsContent>
                     <TabsContent value="register" className="space-y-4">
                       <div className="space-y-2">
                         <Label>Имя</Label>
-                        <Input type="text" placeholder="Иван Иванов" />
+                        <Input id="register-name" type="text" placeholder="Иван Иванов" />
                       </div>
                       <div className="space-y-2">
                         <Label>Email</Label>
-                        <Input type="email" placeholder="your@email.com" />
+                        <Input id="register-email" type="email" placeholder="your@email.com" />
                       </div>
                       <div className="space-y-2">
                         <Label>Телефон</Label>
-                        <Input type="tel" placeholder="+7 918 123 45 67" />
+                        <Input id="register-phone" type="tel" placeholder="+7 918 123 45 67" />
                       </div>
                       <div className="space-y-2">
                         <Label>Пароль</Label>
-                        <Input type="password" placeholder="••••••••" />
+                        <Input id="register-password" type="password" placeholder="••••••••" />
                       </div>
                       <Button className="w-full" onClick={() => {
-                        handleLogin('user@example.com', 'password');
+                        const name = (document.querySelector('#register-name') as HTMLInputElement).value;
+                        const email = (document.querySelector('#register-email') as HTMLInputElement).value;
+                        const phone = (document.querySelector('#register-phone') as HTMLInputElement).value;
+                        const password = (document.querySelector('#register-password') as HTMLInputElement).value;
+                        handleRegister(name, email, phone, password);
                       }}>
                         Зарегистрироваться
                       </Button>
@@ -360,7 +412,7 @@ const Index = () => {
 
   const renderHome = () => (
     <div className="pt-20">
-      <section className="relative bg-gradient-to-br from-primary to-blue-900 text-white py-24 overflow-hidden">
+      <section className="relative bg-gradient-to-br from-primary via-secondary to-purple-900 text-white py-24 overflow-hidden">
         <div className="absolute inset-0 opacity-10">
           <div className="absolute top-20 left-10 w-72 h-72 bg-white rounded-full blur-3xl"></div>
           <div className="absolute bottom-20 right-10 w-96 h-96 bg-accent rounded-full blur-3xl"></div>
@@ -368,10 +420,10 @@ const Index = () => {
         <div className="container mx-auto px-4 relative z-10">
           <div className="max-w-3xl mx-auto text-center">
             <h1 className="text-5xl md:text-6xl font-bold mb-6 animate-fade-in">
-              Доставка из Сочи в Абхазию от 1 дня
+              🍓 Доставка из Сочи в Абхазию от 1 дня
             </h1>
-            <p className="text-xl md:text-2xl mb-8 text-blue-100">
-              Забираем посылки из любых пунктов выдачи и доставляем прямо в руки
+            <p className="text-xl md:text-2xl mb-8 text-purple-100">
+              Берём посылки из любых пунктов и доставляем свежими как ягодки
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Button size="lg" variant="secondary" className="text-lg" onClick={() => setActiveSection('tracking')}>
@@ -478,7 +530,9 @@ const Index = () => {
   );
 
   const renderTracking = () => (
-    <div className="pt-20 py-16">
+    <div className="pt-20">
+      <OrderTracking />
+      <div className="py-16">
       <div className="container mx-auto px-4">
         <h2 className="text-4xl font-bold text-center mb-12">Оформление заказа</h2>
         
@@ -645,6 +699,7 @@ const Index = () => {
             </Button>
           </CardContent>
         </Card>
+      </div>
       </div>
     </div>
   );
@@ -818,17 +873,17 @@ const Index = () => {
   const renderAbout = () => (
     <div className="pt-20 py-16">
       <div className="container mx-auto px-4">
-        <h2 className="text-4xl font-bold text-center mb-12">О компании Бери Бокс</h2>
+        <h2 className="text-4xl font-bold text-center mb-12 bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">🍓 О компании Berrybox</h2>
         
         <div className="max-w-4xl mx-auto space-y-8">
-          <Card>
+          <Card className="border-2 border-primary/20">
             <CardContent className="pt-6">
               <p className="text-lg leading-relaxed mb-4">
-                <span className="font-semibold text-primary">Бери Бокс</span> — это надёжный сервис курьерской доставки между Сочи и Абхазией. 
-                Мы специализируемся на доставке посылок из популярных интернет-магазинов и пунктов выдачи.
+                <span className="font-semibold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">Berrybox</span> — это свежий взгляд на курьерскую доставку между Сочи и Абхазией. 
+                Мы берём ваши посылки из любых пунктов выдачи и доставляем их свежими, быстрыми и бережными — как ягодки!
               </p>
               <p className="text-lg leading-relaxed">
-                Наша миссия — сделать международную доставку быстрой, удобной и доступной для каждого.
+                Наша миссия — сделать доставку простой, быстрой и приятной для каждого. Никаких сложностей, только свежесть и скорость! 🍓
               </p>
             </CardContent>
           </Card>
@@ -883,7 +938,7 @@ const Index = () => {
                 </div>
                 <div>
                   <div className="font-semibold mb-1">Email</div>
-                  <div className="text-muted-foreground">info@beribox.ru</div>
+                  <div className="text-muted-foreground">info@berrybox.ru</div>
                   <div className="text-sm text-muted-foreground">Ответим в течение 2 часов</div>
                 </div>
               </div>
@@ -937,15 +992,15 @@ const Index = () => {
 
       <ChatWidget />
 
-      <footer className="bg-gray-900 text-white py-12 mt-20">
+      <footer className="bg-gradient-to-r from-gray-900 via-purple-900 to-gray-900 text-white py-12 mt-20">
         <div className="container mx-auto px-4">
           <div className="grid md:grid-cols-3 gap-8">
             <div>
               <div className="flex items-center gap-2 mb-4">
-                <Icon name="Package" size={28} className="text-accent" />
-                <span className="text-xl font-bold">Бери Бокс</span>
+                <span className="text-3xl">🍓</span>
+                <span className="text-xl font-bold bg-gradient-to-r from-pink-400 to-purple-400 bg-clip-text text-transparent">Berrybox</span>
               </div>
-              <p className="text-gray-400">Быстрая и надёжная доставка из Сочи в Абхазию</p>
+              <p className="text-gray-300">Свежая доставка из Сочи в Абхазию как ягодки</p>
             </div>
             <div>
               <h3 className="font-semibold mb-4">Навигация</h3>
@@ -960,13 +1015,13 @@ const Index = () => {
               <h3 className="font-semibold mb-4">Контакты</h3>
               <div className="space-y-2 text-gray-400">
                 <div>+7 918 123 45 67</div>
-                <div>info@beribox.ru</div>
+                <div>info@berrybox.ru</div>
                 <div>г. Сочи, ул. Навагинская, 12</div>
               </div>
             </div>
           </div>
           <div className="border-t border-gray-800 mt-8 pt-8 text-center text-gray-400">
-            © 2026 Бери Бокс. Все права защищены.
+            © 2026 Berrybox. Все права защищены.
           </div>
         </div>
       </footer>
