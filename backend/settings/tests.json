@@ -1,0 +1,14 @@
+{
+  "tests": [
+    {
+      "name": "Test get settings",
+      "method": "GET",
+      "path": "/",
+      "expectedStatus": 200,
+      "expectedBody": {
+        "company_name": "string"
+      },
+      "bodyMatcher": "partial"
+    }
+  ]
+}

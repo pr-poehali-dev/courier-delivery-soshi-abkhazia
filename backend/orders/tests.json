@@ -1,0 +1,32 @@
+{
+  "tests": [
+    {
+      "name": "Test get all orders",
+      "method": "GET",
+      "path": "/",
+      "expectedStatus": 200,
+      "expectedBody": [],
+      "bodyMatcher": "partial"
+    },
+    {
+      "name": "Test create order",
+      "method": "POST",
+      "path": "/",
+      "body": {
+        "recipient_name": "Иван Петров",
+        "recipient_phone": "+7 918 123 45 67",
+        "delivery_address": "Сухум, ул. Ленина, 15",
+        "weight": 5,
+        "delivery_type": "home",
+        "comment": "Тестовый заказ"
+      },
+      "expectedStatus": 201,
+      "expectedBody": {
+        "order_number": "string",
+        "recipient_name": "string",
+        "price": "number"
+      },
+      "bodyMatcher": "partial"
+    }
+  ]
+}

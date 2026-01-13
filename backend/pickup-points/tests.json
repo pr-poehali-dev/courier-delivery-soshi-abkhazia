@@ -1,0 +1,12 @@
+{
+  "tests": [
+    {
+      "name": "Test get pickup points",
+      "method": "GET",
+      "path": "/",
+      "expectedStatus": 200,
+      "expectedBody": [],
+      "bodyMatcher": "partial"
+    }
+  ]
+}
