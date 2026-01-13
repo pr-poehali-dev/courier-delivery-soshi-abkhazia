@@ -11,6 +11,10 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import Icon from '@/components/ui/icon';
 import { toast } from 'sonner';
+import Calculator from '@/components/Calculator';
+import FAQ from '@/components/FAQ';
+import ChatWidget from '@/components/ChatWidget';
+import AdminPanel from '@/components/AdminPanel';
 
 type OrderStatus = 'processing' | 'courier' | 'transit' | 'ready' | 'delivered';
 
@@ -66,6 +70,9 @@ const Index = () => {
     recipient_phone: '',
     delivery_address: '',
     weight: '',
+    length: '',
+    width: '',
+    height: '',
     delivery_type: 'home' as 'home' | 'pickup',
     pickup_point_id: '',
     delivery_point_id: '',
@@ -182,6 +189,9 @@ const Index = () => {
         body: JSON.stringify({
           ...orderForm,
           weight: Number(orderForm.weight),
+          length: orderForm.length ? Number(orderForm.length) : null,
+          width: orderForm.width ? Number(orderForm.width) : null,
+          height: orderForm.height ? Number(orderForm.height) : null,
           pickup_point_id: orderForm.pickup_point_id ? Number(orderForm.pickup_point_id) : null,
           delivery_point_id: orderForm.delivery_point_id ? Number(orderForm.delivery_point_id) : null
         })
@@ -198,6 +208,9 @@ const Index = () => {
         recipient_phone: '',
         delivery_address: '',
         weight: '',
+        length: '',
+        width: '',
+        height: '',
         delivery_type: 'home',
         pickup_point_id: '',
         delivery_point_id: '',
@@ -370,35 +383,7 @@ const Index = () => {
         </div>
       </section>
 
-      <section className="py-16 bg-gray-50">
-        <div className="container mx-auto px-4">
-          <h2 className="text-3xl font-bold text-center mb-8">Калькулятор стоимости</h2>
-          <Card className="max-w-md mx-auto">
-            <CardContent className="pt-6 space-y-4">
-              <div>
-                <Label>Вес посылки (кг)</Label>
-                <Input 
-                  type="number" 
-                  placeholder="Введите вес" 
-                  value={calcWeight}
-                  onChange={(e) => setCalcWeight(e.target.value)}
-                />
-              </div>
-              {calcWeight && Number(calcWeight) > 0 && (
-                <div className="p-4 bg-primary/10 rounded-lg">
-                  <div className="text-sm text-muted-foreground mb-1">Стоимость доставки:</div>
-                  <div className="text-3xl font-bold text-primary">
-                    {calculatePrice(Number(calcWeight))}₽
-                  </div>
-                  <div className="text-sm text-muted-foreground mt-1">
-                    {Number(calcWeight) < 10 ? 'Тариф: 120₽/кг' : 'Тариф: 100₽/кг (от 10 кг)'}
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-      </section>
+      <Calculator />
 
       <section className="py-16">
         <div className="container mx-auto px-4">
@@ -549,8 +534,41 @@ const Index = () => {
                 value={orderForm.weight}
                 onChange={(e) => setOrderForm({...orderForm, weight: e.target.value})}
               />
+            </div>
+
+            <div className="space-y-2">
+              <Label className="flex items-center gap-2">
+                <Icon name="Box" size={16} />
+                Габариты (см)
+              </Label>
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <Input 
+                    type="number" 
+                    placeholder="Длина"
+                    value={orderForm.length || ''}
+                    onChange={(e) => setOrderForm({...orderForm, length: e.target.value})}
+                  />
+                </div>
+                <div>
+                  <Input 
+                    type="number" 
+                    placeholder="Ширина"
+                    value={orderForm.width || ''}
+                    onChange={(e) => setOrderForm({...orderForm, width: e.target.value})}
+                  />
+                </div>
+                <div>
+                  <Input 
+                    type="number" 
+                    placeholder="Высота"
+                    value={orderForm.height || ''}
+                    onChange={(e) => setOrderForm({...orderForm, height: e.target.value})}
+                  />
+                </div>
+              </div>
               {orderForm.weight && (
-                <p className="text-sm text-muted-foreground">
+                <p className="text-sm text-muted-foreground mt-2">
                   Стоимость: <span className="font-semibold text-primary">{calculatePrice(Number(orderForm.weight))}₽</span>
                 </p>
               )}
@@ -899,13 +917,25 @@ const Index = () => {
   return (
     <div className="min-h-screen bg-background">
       {renderHeader()}
-      {activeSection === 'home' && renderHome()}
+      {activeSection === 'home' && (
+        <>
+          {renderHome()}
+          <FAQ />
+        </>
+      )}
       {activeSection === 'tariffs' && renderTariffs()}
       {activeSection === 'tracking' && renderTracking()}
       {activeSection === 'cabinet' && renderCabinet()}
       {activeSection === 'about' && renderAbout()}
       {activeSection === 'contacts' && renderContacts()}
-      {activeSection === 'admin' && isAdmin && renderAdmin()}
+      {activeSection === 'admin' && isAdmin && (
+        <div className="pt-20 container mx-auto px-4">
+          <h2 className="text-4xl font-bold mb-8">Админ-панель</h2>
+          <AdminPanel />
+        </div>
+      )}
+
+      <ChatWidget />
 
       <footer className="bg-gray-900 text-white py-12 mt-20">
         <div className="container mx-auto px-4">
