@@ -8,11 +8,21 @@ def get_db_connection():
     """Создает подключение к базе данных"""
     return psycopg2.connect(os.environ['DATABASE_URL'])
 
-def calculate_price(weight: float) -> float:
-    """Рассчитывает стоимость доставки"""
-    if weight < 10:
-        return weight * 120
-    return weight * 100
+def calculate_volumetric_weight(length: float, width: float, height: float, volume_factor: float = 5000) -> float:
+    """Рассчитывает объемный вес"""
+    return (length * width * height) / volume_factor
+
+def calculate_price(weight: float, length: float = None, width: float = None, height: float = None) -> float:
+    """Рассчитывает стоимость доставки с учетом габаритов"""
+    actual_weight = weight
+    
+    if length and width and height:
+        volumetric_weight = calculate_volumetric_weight(length, width, height)
+        actual_weight = max(weight, volumetric_weight)
+    
+    if actual_weight < 10:
+        return actual_weight * 120
+    return actual_weight * 100
 
 def generate_order_number(order_id: int) -> str:
     """Генерирует номер заказа"""
@@ -88,6 +98,9 @@ def handler(event: dict, context):
             recipient_phone = body.get('recipient_phone', '').strip()
             delivery_address = body.get('delivery_address', '').strip()
             weight = float(body.get('weight', 0))
+            length = float(body.get('length', 0)) if body.get('length') else None
+            width = float(body.get('width', 0)) if body.get('width') else None
+            height = float(body.get('height', 0)) if body.get('height') else None
             delivery_type = body.get('delivery_type', 'home')
             comment = body.get('comment', '').strip()
             pickup_point_id = body.get('pickup_point_id')
@@ -109,15 +122,15 @@ def handler(event: dict, context):
                     'isBase64Encoded': False
                 }
             
-            price = calculate_price(weight)
+            price = calculate_price(weight, length, width, height)
             
             cursor.execute(
                 """INSERT INTO orders (order_number, user_id, recipient_name, recipient_phone, 
-                   delivery_address, weight, price, delivery_type, comment, status, pickup_point_id, delivery_point_id) 
-                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) 
+                   delivery_address, weight, length, width, height, price, delivery_type, comment, status, pickup_point_id, delivery_point_id) 
+                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) 
                    RETURNING *""",
                 ('TEMP', user_id, recipient_name, recipient_phone, delivery_address, 
-                 weight, price, delivery_type, comment, 'processing', pickup_point_id, delivery_point_id)
+                 weight, length, width, height, price, delivery_type, comment, 'processing', pickup_point_id, delivery_point_id)
             )
             order = cursor.fetchone()
             order_dict = dict(order)
